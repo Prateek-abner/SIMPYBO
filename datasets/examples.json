@@ -1,0 +1,72 @@
+{
+  "english": [
+    {
+      "word": "epitome",
+      "definition": "1. A work in which the contents of a former work are reduced within a smaller space by curtailment and condensation; a brief summary; an abridgemen...",
+      "example": "Example: The epitome is important."
+    },
+    {
+      "word": "water feather-foil",
+      "definition": "The water violet (Hottonia palustris); also, the less showy American plant H. inflata.",
+      "example": "Example: The water feather-foil is important."
+    },
+    {
+      "word": "pyrothonide",
+      "definition": "A kind of empyreumatic oil produced by the combustion of textures of hemp, linen, or cotton in a copper vessel, -- formerly used as a remedial agen...",
+      "example": "Example: The pyrothonide is important."
+    },
+    {
+      "word": "signification",
+      "definition": "1. The act of signifying; a making known by signs or other means. A signification of being pleased. Landor. All speaking or signification of one's ...",
+      "example": "Example: The signification is important."
+    },
+    {
+      "word": "mendicate",
+      "definition": "To beg. [R.] Johnson.",
+      "example": "Example: The mendicate is important."
+    }
+  ],
+  "hinglish": [
+    {
+      "word": "example",
+      "input": "Hi",
+      "output": "hi",
+      "definition": "hi",
+      "example": "Hi"
+    },
+    {
+      "word": "movie",
+      "input": "The movie that was picked, I'",
+      "output": "movie jo chuni gayi, 'I",
+      "definition": "movie jo chuni gayi, 'I",
+      "example": "The movie that was picked, I'"
+    },
+    {
+      "word": "movie",
+      "input": "what is the movie about?",
+      "output": "Movie ke baare mein kya hai?",
+      "definition": "Movie ke baare mein kya hai?",
+      "example": "what is the movie about?"
+    },
+    {
+      "word": "other",
+      "input": "Other than IMDB, no",
+      "output": "IMDB KE ALAVA.NAHI",
+      "definition": "IMDB KE ALAVA.NAHI",
+      "example": "Other than IMDB, no"
+    },
+    {
+      "word": "think",
+      "input": "i think the ratings are good. Rotten tomatoes gave it an 89% and cinemascore gave it an A+",
+      "output": "Mujhe lagta hai ratings acchi hain. Rotten tomatoes ne 89% diya hai, aur cinemascore ne A+ diya hai.",
+      "definition": "Mujhe lagta hai ratings acchi hain. Rotten tomatoes ne 89% diya hai, aur cinemascore ne A+ diya hai.",
+      "example": "i think the ratings are good. Rotten tomatoes gave it an 89% and cinemascore gave it an A+"
+    }
+  ],
+  "metadata": {
+    "bot_name": "simpybo",
+    "total_english": 200,
+    "total_hinglish": 200,
+    "source": "dictionary.json + hinglish_upload_v1.json"
+  }
+}
