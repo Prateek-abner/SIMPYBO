@@ -123,7 +123,7 @@ def stats():
 def get_welcome():
     return jsonify({
         "replies": [{
-            "text": "👋 **Hi! I'm Simpybo!**\n\nI explain difficult words simply! ✨\n\n**Features:**\n• Simple explanations\n• Real examples\n• Hinglish support 🇮🇳\n\n**Powered by:**\n• Your dictionary.json\n• Your hinglish_upload_v1.json\n• Groq AI\n\nType any word! 🔤",
+            "text": "👋 **Hi! I'm Simpybo!**\n\nI explain difficult words simply! ✨\n\n**Features:**\n• Simple explanations\n• Real examples\n• Hinglish support 🇮🇳\n\\nType any word! 🔤",
             "suggestions": [
                 {"title": "Algorithm", "value": "algorithm"},
                 {"title": "🇮🇳 Hinglish", "value": "hinglish"},
@@ -167,3 +167,4 @@ if __name__ == '__main__':
     print(f"📊 Status: {'Ready ✅' if simpybo else 'Offline ❌'}")
     print(f"🌐 URL: http://localhost:{port}\n")
     app.run(host='0.0.0.0', port=port, debug=True)
+
