@@ -1,5 +1,5 @@
 """
-SIMPYBO - Flask Server
+BoDH-S - Flask Server
 """
 
 from flask import Flask, request, jsonify
@@ -10,161 +10,288 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'simpybo-2025')
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "bodhs-2025")
 
-print("🚀 Initializing Simpybo...")
+print("🚀 Initializing BoDH-S...")
 try:
-    simpybo = SimpyboAI()
-    print("✅ Simpybo ready!")
+    engine = SimpyboAI()
+    print("✅ BoDH-S ready!")
 except Exception as e:
-    print(f"❌ Failed: {e}")
-    simpybo = None
+    print(f"❌ Failed to initialize BoDH-S: {e}")
+    engine = None
 
+# Store per-user preferences (language mode)
 user_sessions = {}
 
-@app.route('/', methods=['GET'])
-def home():
-    return jsonify({
-        "status": "online",
-        "bot_name": "Simpybo",
-        "version": "1.0",
-        "powered_by": "Groq AI + Your Datasets",
-        "datasets": "dictionary.json + hinglish_upload_v1.json"
-    })
 
-@app.route('/webhook', methods=['POST'])
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify(
+        {
+            "status": "online",
+            "bot_name": "BoDH-S",
+            "version": "1.0",
+            "powered_by": "Groq AI + Your Datasets",
+            "datasets": "dictionary.json + hinglish_upload_v1.json",
+        }
+    )
+
+
+@app.route("/webhook", methods=["POST"])
 def webhook():
-    if not simpybo:
-        return jsonify({"replies": [{"text": "❌ Simpybo offline"}]}), 500
-    
+    """
+    Zoho SalesIQ webhook endpoint.
+    Conversation logic:
+    1. Ask user to choose mode: Easy English or Hinglish.
+    2. Store mode in session.
+    3. Any following message is treated as the word to explain.
+    """
+    if not engine:
+        return jsonify({"replies": [{"text": "❌ BoDH-S is currently offline."}]}), 500
+
     try:
-        data = request.get_json()
-        user_id = data.get('user', {}).get('id', 'anon')
-        user_message = data.get('message', {}).get('text', '').strip().lower()
-        
+        data = request.get_json() or {}
+        user = data.get("user", {}) or {}
+        user_id = user.get("id", "anon")
+
+        message = data.get("message", {}) or {}
+        user_message = (message.get("text") or "").strip().lower()
+
+        # No message -> show mode selection
         if not user_message:
-            return get_welcome()
-        
-        if user_message in ['hi', 'hello', 'start', 'help']:
-            user_sessions[user_id] = {'language': 'english'}
-            return get_welcome()
-        
-        if 'hinglish' in user_message or 'hindi' in user_message:
-            user_sessions[user_id] = {'language': 'hinglish'}
-            return jsonify({
-                "replies": [{
-                    "text": "🇮🇳 Perfect! Ab Hinglish mein samjhaunga.\n\nKoi bhi word type karo!",
-                    "suggestions": [
-                        {"title": "Movie", "value": "movie"},
-                        {"title": "COD", "value": "COD"},
-                        {"title": "English", "value": "english"}
+            return get_mode_selection()
+
+        # Reset / help
+        if user_message in ["hi", "hello", "start", "help", "menu"]:
+            user_sessions[user_id] = {"language": None}
+            return get_mode_selection()
+
+        # ----- Mode selection -----
+        if user_message in ["mode_english", "easy english", "english"]:
+            user_sessions[user_id] = {"language": "english"}
+            return mode_selected_reply("english")
+
+        if user_message in ["mode_hinglish", "hinglish", "hindi"]:
+            user_sessions[user_id] = {"language": "hinglish"}
+            return mode_selected_reply("hinglish")
+
+        # ----- Word explanation -----
+        session = user_sessions.get(user_id, {})
+        language = session.get("language")
+
+        # If mode not chosen yet, force them to pick first
+        if language not in ["english", "hinglish"]:
+            return get_mode_selection(remind=True)
+
+        # Clean word: strip helper phrases
+        word = (
+            user_message.replace("what is", "")
+            .replace("meaning of", "")
+            .replace("explain", "")
+            .strip()
+        )
+        if not word:
+            return jsonify(
+                {
+                    "replies": [
+                        {
+                            "text": (
+                                "Please type the word you want me to explain. "
+                                "For example: algorithm, warranty, COD."
+                            )
+                        }
                     ]
-                }]
-            })
-        
-        if user_message == 'english':
-            user_sessions[user_id] = {'language': 'english'}
-            return jsonify({
-                "replies": [{
-                    "text": "✅ Switched to English!\n\nType any word!",
-                    "suggestions": [
-                        {"title": "Algorithm", "value": "algorithm"},
-                        {"title": "Warranty", "value": "warranty"},
-                        {"title": "Hinglish", "value": "hinglish"}
-                    ]
-                }]
-            })
-        
-        language = user_sessions.get(user_id, {}).get('language', 'english')
-        word = user_message.replace('what is', '').replace('explain', '').strip()
-        
-        result = simpybo.explain_word(word, language)
-        
-        if result['success']:
-            return format_success(result, user_id)
+                }
+            )
+
+        result = engine.explain_word(word, language)
+
+        if result.get("success"):
+            return format_success(result)
         else:
             return format_error(word, language)
-    
-    except Exception as e:
-        return jsonify({"replies": [{"text": f"😔 Error: {e}"}]}), 500
 
-@app.route('/explain', methods=['POST'])
+    except Exception as e:
+        return (
+            jsonify(
+                {
+                    "replies": [
+                        {
+                            "text": (
+                                f"😔 Sorry, something went wrong in BoDH-S.\n\n"
+                                f"Error: {e}"
+                            )
+                        }
+                    ]
+                }
+            ),
+            500,
+        )
+
+
+@app.route("/explain", methods=["POST"])
 def explain_api():
-    if not simpybo:
-        return jsonify({"error": "Offline"}), 500
-    
+    """Direct API for testing without Zoho."""
+    if not engine:
+        return jsonify({"error": "BoDH-S offline"}), 500
+
     try:
-        data = request.get_json()
-        word = data.get('word', '').strip()
-        language = data.get('language', 'english').lower()
-        
+        data = request.get_json() or {}
+        word = (data.get("word") or "").strip()
+        language = (data.get("language") or "english").lower()
+
         if not word:
             return jsonify({"error": "Word required"}), 400
-        
-        result = simpybo.explain_word(word, language)
+
+        if language not in ["english", "hinglish"]:
+            language = "english"
+
+        result = engine.explain_word(word, language)
         return jsonify(result)
-    
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/stats', methods=['GET'])
+
+@app.route("/stats", methods=["GET"])
 def stats():
-    if not simpybo:
-        return jsonify({"error": "Offline"}), 500
-    
-    return jsonify({
-        "bot_name": "Simpybo",
-        "datasets": simpybo.examples.get('metadata', {}),
-        "english_examples": len(simpybo.examples.get('english', [])),
-        "hinglish_examples": len(simpybo.examples.get('hinglish', [])),
-        "model": simpybo.model
-    })
+    if not engine:
+        return jsonify({"error": "BoDH-S offline"}), 500
 
-def get_welcome():
-    return jsonify({
-        "replies": [{
-            "text": "👋 **Hi! I'm Simpybo!**\n\nI explain difficult words simply! ✨\n\n**Features:**\n• Simple explanations\n• Real examples\n• Hinglish support 🇮🇳\n\\nType any word! 🔤",
-            "suggestions": [
-                {"title": "Algorithm", "value": "algorithm"},
-                {"title": "🇮🇳 Hinglish", "value": "hinglish"},
-                {"title": "Stats", "value": "/stats"}
+    return jsonify(
+        {
+            "bot_name": "BoDH-S",
+            "datasets": engine.examples.get("metadata", {}),
+            "english_examples": len(engine.examples.get("english", [])),
+            "hinglish_examples": len(engine.examples.get("hinglish", [])),
+            "model": engine.model,
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
+# Helper response builders
+# ---------------------------------------------------------------------------
+
+
+def get_mode_selection(remind: bool = False):
+    """
+    Ask user to choose between Easy English and Hinglish modes.
+    """
+    if remind:
+        intro = (
+            "First choose how you want me to explain words:\n\n"
+            "1️⃣ Easy English\n"
+            "2️⃣ Hinglish for Indian users\n\n"
+        )
+    else:
+        intro = (
+            "👋 **Hi! I'm BoDH-S!**\n\n"
+            "I turn tough words into easy explanations with examples.\n\n"
+            "First, choose how you want answers:\n\n"
+            "1️⃣ Easy English \n"
+            "2️⃣ Hinglish \n\n"
+        )
+
+    return jsonify(
+        {
+            "replies": [
+                {
+                    "text": intro + "Tap an option below to continue.",
+                    "suggestions": [
+                        {
+                            "title": "1️⃣ Easy English",
+                            "value": "mode_english",
+                        },
+                        {
+                            "title": "2️⃣ Hinglish (India)",
+                            "value": "mode_hinglish",
+                        },
+                    ],
+                }
             ]
-        }]
-    })
+        }
+    )
 
-def format_success(result, user_id):
-    word = result['word'].upper()
-    meaning = result['simple_meaning']
-    example = result['example']
-    full_form = result.get('full_form', '')
-    language = result['language']
-    
+
+def mode_selected_reply(language: str):
+    """
+    Reply after the user selects a mode.
+    """
+    if language == "english":
+        text = (
+            "✅ Mode set to **Easy English**.\n\n"
+            "Now type any difficult word and I’ll explain it in simple English "
+            "with a short example.\n\n"
+            "Try: algorithm, warranty, refund, cryptocurrency."
+        )
+    else:
+        text = (
+            "✅ Mode set to **Hinglish**.\n\n"
+            "Ab se main words ko Hinglish mein simple meaning + example ke saath "
+            "samjhaunga.\n\n"
+            "Try: movie, EMI, warranty, COD."
+        )
+
+    return jsonify(
+        {
+            "replies": [
+                {
+                    "text": text,
+                    "suggestions": [
+                        {"title": "algorithm", "value": "algorithm"},
+                        {"title": "warranty", "value": "warranty"},
+                        {"title": "COD", "value": "COD"},
+                    ],
+                }
+            ]
+        }
+    )
+
+
+def format_success(result: dict):
+    """
+    Build Zoho-style response for a successful explanation.
+    """
+    word = (result.get("word") or "").upper()
+    meaning = result.get("simple_meaning") or "Meaning not available."
+    example = result.get("example") or "Example not available."
+    full_form = result.get("full_form") or ""
+    language = result.get("language") or "english"
+
     flag = "🇮🇳" if language == "hinglish" else "📖"
+
     text = f"{flag} **{word}**\n\n"
-    
+
     if full_form:
         text += f"**Full Form:** {full_form}\n\n"
-    
-    text += f"**✏️ Meaning:**\n{meaning}\n\n"
+
+    text += f"**✏️ Simple Meaning:**\n{meaning}\n\n"
     text += f"**💡 Example:**\n{example}\n\n"
-    text += "_- Simpybo 🤖_"
-    
+    text += "_- BoDH-S 🤖_"
+
     suggestions = [
-        {"title": "🔍 Another", "value": "explain"},
-        {"title": "🔄 Switch", "value": "hinglish" if language == "english" else "english"},
-        {"title": "🏠 Menu", "value": "start"}
+        {"title": "🔍 Another word", "value": "start"},
+        {
+            "title": "Change mode",
+            "value": "menu",
+        },
     ]
-    
+
     return jsonify({"replies": [{"text": text, "suggestions": suggestions}]})
 
-def format_error(word, language):
-    text = f"😔 Sorry! Couldn't explain **{word}**.\n\nCheck spelling or try another word!"
-    return jsonify({"replies": [{"text": text}]})
 
-if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
-    print(f"\n🚀 Starting on port {port}...")
-    print(f"📊 Status: {'Ready ✅' if simpybo else 'Offline ❌'}")
+def format_error(word: str, language: str):
+    msg = (
+        f"😔 Sorry! I couldn't explain **{word}**.\n\n"
+        "Please check the spelling or try a different word."
+    )
+    return jsonify({"replies": [{"text": msg}]})
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 5000))
+    print(f"\n🚀 Starting BoDH-S on port {port}...")
+    print(f"📊 Status: {'Ready ✅' if engine else 'Offline ❌'}")
     print(f"🌐 URL: http://localhost:{port}\n")
-    app.run(host='0.0.0.0', port=port, debug=True)
-
+    app.run(host="0.0.0.0", port=port, debug=True)
