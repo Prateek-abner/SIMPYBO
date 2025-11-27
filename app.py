@@ -144,27 +144,30 @@ def detect_language_choice(text: str):
 def get_mode_selection(remind: bool = False):
     """
     Ask user to choose between Easy English and Hinglish modes.
+    Shows clickable buttons for option selection.
     """
     if remind:
         intro = (
-            "First choose how you want me to explain words:\n\n"
+            "⚠️ Please choose your preferred mode first:\n\n"
             "1️⃣ Easy English\n"
             "2️⃣ Hinglish for Indian users\n\n"
+            "Tap a button below or type 1 / 2."
         )
     else:
         intro = (
             "👋 **Hi! I'm BoDH-S!**\n\n"
             "I turn tough words into easy explanations with examples.\n\n"
-            "First, choose how you want answers:\n\n"
-            "1️⃣ Easy English (simple meaning + example)\n"
-            "2️⃣ Hinglish (Hindi + English meaning + example)\n\n"
+            "🌟 Choose how you want answers:\n\n"
+            "1️⃣ **Easy English** - Simple meaning + example\n"
+            "2️⃣ **Hinglish** - Hindi + English meaning + example\n\n"
+            "Tap a button below or type 1 / 2."
         )
     
     return jsonify(
         {
             "replies": [
                 {
-                    "text": intro + "Tap an option below or type 1 / 2.",
+                    "text": intro,
                     "suggestions": [
                         {"title": "1️⃣ Easy English", "value": "1"},
                         {"title": "2️⃣ Hinglish for Indian users", "value": "2"},
@@ -181,17 +184,17 @@ def mode_selected_reply(language: str):
     """
     if language == "english":
         text = (
-            "✅ Mode set to **Easy English**.\n\n"
+            "✅ **Mode set to Easy English**.\n\n"
             "Now type any difficult word and I'll explain it in simple English "
             "with a short example.\n\n"
-            "For example: algorithm, warranty, refund, cryptocurrency."
+            "📝 For example: algorithm, warranty, refund, cryptocurrency."
         )
     else:
         text = (
-            "✅ Mode set to **Hinglish**.\n\n"
+            "✅ **Mode set to Hinglish**.\n\n"
             "Ab se main words ko Hinglish mein simple meaning + example ke saath "
             "samjhaunga.\n\n"
-            "For example: movie, EMI, warranty, COD."
+            "📝 For example: movie, EMI, warranty, COD."
         )
     
     return jsonify(
@@ -231,7 +234,7 @@ def format_success(result: dict):
     
     suggestions = [
         {"title": "🔍 Another word", "value": "start"},
-        {"title": "Change mode (1 / 2)", "value": "menu"},
+        {"title": "Change mode", "value": "menu"},
     ]
     
     return jsonify({"replies": [{"text": text, "suggestions": suggestions}]})
@@ -254,9 +257,9 @@ def webhook():
     """
     Main webhook endpoint for Zoho SalesIQ.
     Flow:
-    1. Detect greeting -> Show welcome + options (if new user) or acknowledge greeting (if returning user)
-    2. Detect mode choice (1/2) -> Set mode and confirm
-    3. Explain the word based on selected mode
+    1. If greeting detected -> Always show welcome + options if mode not set
+    2. If mode choice detected (1/2) -> Set mode and show confirmation
+    3. If mode is set -> Explain the word user typed
     """
     if not engine:
         return jsonify({"replies": [{"text": "❌ BoDH-S is currently offline."}]}), 500
@@ -269,38 +272,12 @@ def webhook():
     text = raw_text.lower()
     
     # ============================================================
-    # STEP 1: Check if it's a greeting (hi, hello, whatsup, etc.)
+    # STEP 1: Check if it's a greeting first (hi, hello, whatsup, menu, etc.)
     # ============================================================
     if is_greeting(text):
-        # Reset session or check if mode is already set
-        session = user_sessions.get(user_id, {})
-        language = session.get("language")
-        
-        # If mode NOT selected yet -> show welcome + options
-        if language not in ["english", "hinglish"]:
-            user_sessions[user_id] = {"language": None}
-            return get_mode_selection()
-        
-        # If mode already selected -> just acknowledge greeting briefly
-        else:
-            return jsonify(
-                {
-                    "replies": [
-                        {
-                            "text": (
-                                "👋 Hello again! I'm ready to help.\n\n"
-                                "Type any difficult word and I'll explain it for you.\n\n"
-                                "Or type 'menu' to change your language mode."
-                            ),
-                            "suggestions": [
-                                {"title": "algorithm", "value": "algorithm"},
-                                {"title": "warranty", "value": "warranty"},
-                                {"title": "menu", "value": "menu"},
-                            ],
-                        }
-                    ]
-                }
-            )
+        # Always reset and show options when greeting is detected
+        user_sessions[user_id] = {"language": None}
+        return get_mode_selection()
     
     # ============================================================
     # STEP 2: Check if this message is a mode choice (1 or 2)
@@ -311,18 +288,19 @@ def webhook():
         return mode_selected_reply(choice)
     
     # ============================================================
-    # STEP 3: If no text at all -> ask for mode
+    # STEP 3: If no text at all -> show welcome options
     # ============================================================
     if not text:
         return get_mode_selection()
     
     # ============================================================
-    # STEP 4: Get user mode - if not set, remind to choose mode
+    # STEP 4: Check if user has selected mode yet
     # ============================================================
     session = user_sessions.get(user_id, {})
     language = session.get("language")
     
     if language not in ["english", "hinglish"]:
+        # Mode not selected yet, remind user to select mode first
         return get_mode_selection(remind=True)
     
     # ============================================================
@@ -341,8 +319,8 @@ def webhook():
                 "replies": [
                     {
                         "text": (
-                            "Please type the word you want me to explain.\n"
-                            "Example: algorithm, warranty, COD."
+                            "Please type the word you want me to explain.\n\n"
+                            "📝 Example: algorithm, warranty, COD."
                         )
                     }
                 ]
