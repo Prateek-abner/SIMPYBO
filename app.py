@@ -45,15 +45,19 @@ def home():
 def detect_language_choice(text: str):
     """
     Map user input to a language choice.
-    Accepts:
-      - suggestion values
-      - numbers: 1 / 2
-      - words: english / hinglish / hindi
+
+    Accepted examples:
+      - "1", "option 1", "easy english", "go with option 1", "english"
+      - "2", "option 2", "hinglish", "ok go with option 2", "switch to option 2"
     Returns "english", "hinglish" or None.
     """
-    t = (text or "").strip().lower()
+    if not text:
+        return None
 
-    english_tokens = {
+    t = text.strip().lower()
+
+    # Exact matches first (buttons, plain numbers, single words)
+    english_exact = {
         "1",
         "1.",
         "one",
@@ -61,10 +65,8 @@ def detect_language_choice(text: str):
         "easy english",
         "english",
         "english mode",
-        "option 1",
-        "1 easy english",
     }
-    hinglish_tokens = {
+    hinglish_exact = {
         "2",
         "2.",
         "two",
@@ -72,15 +74,37 @@ def detect_language_choice(text: str):
         "hinglish",
         "hindi",
         "hinglish mode",
-        "option 2",
-        "2 hinglish",
-        "2 hinglish for indian users",
     }
 
-    if t in english_tokens:
+    if t in english_exact:
         return "english"
-    if t in hinglish_tokens:
+    if t in hinglish_exact:
         return "hinglish"
+
+    # Phrase-based detection (user types sentences)
+    english_keywords = [
+        "option 1",
+        "go with 1",
+        "go with option 1",
+        "switch to option 1",
+        "easy english",
+        "english only",
+    ]
+    hinglish_keywords = [
+        "option 2",
+        "go with 2",
+        "go with option 2",
+        "switch to option 2",
+        "hinglish",
+        "hindi english",
+        "indian users",
+    ]
+
+    if any(kw in t for kw in english_keywords):
+        return "english"
+    if any(kw in t for kw in hinglish_keywords):
+        return "hinglish"
+
     return None
 
 
@@ -109,14 +133,8 @@ def get_mode_selection(remind: bool = False):
                 {
                     "text": intro + "Tap an option below or type 1 / 2.",
                     "suggestions": [
-                        {
-                            "title": "1️⃣ Easy English",
-                            "value": "1",
-                        },
-                        {
-                            "title": "2️⃣ Hinglish for Indian users",
-                            "value": "2",
-                        },
+                        {"title": "1️⃣ Easy English", "value": "1"},
+                        {"title": "2️⃣ Hinglish for Indian users", "value": "2"},
                     ],
                 }
             ]
@@ -133,14 +151,14 @@ def mode_selected_reply(language: str):
             "✅ Mode set to **Easy English**.\n\n"
             "Now type any difficult word and I’ll explain it in simple English "
             "with a short example.\n\n"
-            "Try: algorithm, warranty, refund, cryptocurrency."
+            "For example: algorithm, warranty, refund, cryptocurrency."
         )
     else:
         text = (
             "✅ Mode set to **Hinglish**.\n\n"
             "Ab se main words ko Hinglish mein simple meaning + example ke saath "
             "samjhaunga.\n\n"
-            "Try: movie, EMI, warranty, COD."
+            "For example: movie, EMI, warranty, COD."
         )
 
     return jsonify(
@@ -180,7 +198,7 @@ def format_success(result: dict):
 
     suggestions = [
         {"title": "🔍 Another word", "value": "start"},
-        {"title": "Change mode", "value": "menu"},
+        {"title": "Change mode (1 / 2)", "value": "menu"},
     ]
 
     return jsonify({"replies": [{"text": text, "suggestions": suggestions}]})
@@ -203,10 +221,12 @@ def format_error(word: str):
 def webhook():
     """
     Main webhook endpoint for Zoho SalesIQ.
+
     Flow:
-      - If mode not chosen, ask user to choose.
-      - If user sends 1/2/english/hinglish, set mode.
-      - Otherwise, treat message as word and explain in chosen mode.
+      - Show options 1 / 2 at the beginning.
+      - If user sends 1 / 2 / 'ok go with option 2' etc., set mode.
+      - Then tell them to type hard words and answer accordingly.
+      - At any time they can type another option phrase to switch.
     """
     if not engine:
         return jsonify({"replies": [{"text": "❌ BoDH-S is currently offline."}]}), 500
@@ -224,7 +244,7 @@ def webhook():
         user_sessions[user_id] = {"language": None}
         return get_mode_selection()
 
-    # Language choice check first
+    # Check if this message is a mode choice (even inside a sentence)
     choice = detect_language_choice(text)
     if choice:
         user_sessions[user_id] = {"language": choice}
@@ -238,11 +258,11 @@ def webhook():
     session = user_sessions.get(user_id, {})
     language = session.get("language")
 
-    # If mode not chosen yet, force mode selection
+    # If mode not chosen yet, force mode selection once
     if language not in ["english", "hinglish"]:
         return get_mode_selection(remind=True)
 
-    # Treat this as the word to explain
+    # Treat this message as the word / phrase to explain
     word = (
         text.replace("what is", "")
         .replace("meaning of", "")
